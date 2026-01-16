@@ -1,0 +1,47 @@
+version: "3.8"
+
+services:
+  label-studio:
+    image: heartexlabs/label-studio:latest
+    container_name: label-studio
+    user: root  # 폴더 생성 및 쓰기 권한 강제 부여
+    ports:
+      - "8080:8080"
+    volumes:
+      - "./label-studio/ls_data:/label-studio/data"
+      - "./data/dataset:/label-studio/files"
+    environment:
+      - LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED=true
+      - LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT=/label-studio/files
+    restart: always
+
+  yolo:
+    container_name: yolo
+    build:
+      context: ./yolo
+      dockerfile: Dockerfile
+    user: root  # start.sh 실행 및 모델 로드 권한 강제 부여
+    environment:
+      - LOG_LEVEL=DEBUG
+      - MODEL_DIR=/data/models
+      - PYTHONPATH=/app
+      - LABEL_STUDIO_HOST=http://label-studio:8080
+      - LABEL_STUDIO_API_KEY=${LABEL_STUDIO_API_KEY}
+      - ALLOW_CUSTOM_MODEL_PATH=true
+      - MODEL_SCORE_THRESHOLD=0.5
+      - MODEL_ROOT=/app/models
+    ports:
+      - "9090:9090"
+    volumes:
+      - "./data/server:/data"
+      - "./yolo/models:/app/models"      # ml-backend 대신 yolo 폴더로 수정함
+      - "./data/dataset:/app/data"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    depends_on:
+      - label-studio
